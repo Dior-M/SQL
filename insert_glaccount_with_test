@@ -1,0 +1,40 @@
+-- This SQL script creates and invokes a stored procedure named insert_glaccount_with_test. 
+The procedure utilizes a function previously defined to examine whether the account description is
+a duplicate before executing an insertion operation. In the event that the account description already exists, 
+the procedure triggers an error with a SQLSTATE code of 23000, a MySQL code of 1062, accompanied by the message 
+"Duplicate account description." This functionality ensures data integrity by preventing the insertion of duplicate 
+account descriptions into the database table.
+
+
+-- Drop the existing stored procedure if it exists
+DROP PROCEDURE IF EXISTS insert_glaccount_with_test;
+
+-- Create the new stored procedure
+DELIMITER //
+
+CREATE PROCEDURE insert_glaccount_with_test (
+    IN account_description VARCHAR(50)
+)
+BEGIN
+    DECLARE is_duplicate BOOL;
+    DECLARE new_account_number INT;
+
+    -- Calling the existing function to check for duplicates
+    SET is_duplicate = test_glaccounts_description(account_description);
+
+    IF is_duplicate THEN
+        -- Raising an error with specific SQLSTATE and MySQL codes
+        SIGNAL SQLSTATE '23000' SET MYSQL_ERRNO = 1062, MESSAGE_TEXT = 'Duplicate account description';
+    ELSE
+        -- Generating a new account number
+        SELECT COALESCE(MAX(account_number), 0) + 1 INTO new_account_number FROM general_ledger_accounts;
+        
+        -- Inserting the new account
+        INSERT INTO general_ledger_accounts (account_number, account_description)
+        VALUES (new_account_number, account_description);  
+    END IF;
+END //
+
+DELIMITER ;
+-- Call the stored procedure for testing with a non-duplicate account description
+CALL insert_glaccount_with_test('New Account Description');
